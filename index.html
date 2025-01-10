@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>allow auto update</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+      .container {
+        max-width: 600px;
+        margin: 50px auto;
+        padding: 20px;
+        font-family: Arial, sans-serif;
+      }
+      .search-box {
+        margin: 20px 0;
+      }
+      input[type="text"],
+      input[type="password"] {
+        padding: 8px;
+        width: 200px;
+        margin-right: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      button {
+        padding: 8px 15px;
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      .switch {
+        position: relative;
+        display: inline-block;
+        width: 60px;
+        height: 34px;
+        margin-left: 10px;
+      }
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: 0.4s;
+        border-radius: 34px;
+      }
+      .slider:before {
+        position: absolute;
+        content: "";
+        height: 26px;
+        width: 26px;
+        left: 4px;
+        bottom: 4px;
+        background-color: white;
+        transition: 0.4s;
+        border-radius: 50%;
+      }
+      input:checked + .slider {
+        background-color: #45a049;
+      }
+      input:checked + .slider:before {
+        transform: translateX(26px);
+      }
+      .setting-box {
+        margin-top: 20px;
+        padding: 20px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      .status {
+        margin-bottom: 10px;
+        color: #666;
+      }
+      .login-form {
+        margin: 20px 0;
+        padding: 20px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      .input-group {
+        margin-bottom: 15px;
+      }
+      .input-group input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+      .input-group input:focus {
+        outline: none;
+        border-color: #45a049;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app" class="container">
+      <div v-if="!isLoggedIn">
+        <div class="status">Status: Not logged in</div>
+        <div class="login-form">
+          <div class="input-group">
+            <input
+              type="text"
+              v-model="loginForm.username"
+              placeholder="Username"
+            />
+          </div>
+          <div class="input-group">
+            <input
+              type="password"
+              v-model="loginForm.password"
+              placeholder="Password"
+            />
+          </div>
+          <button @click="login">Login</button>
+        </div>
+      </div>
+
+      <div v-else>
+        <div class="search-box">
+          <input type="text" v-model="searchSN" placeholder="Enter System SN" />
+          <button @click="searchSystem">Search</button>
+        </div>
+
+        <div class="setting-box" v-if="systemSettings">
+          <div>
+            <label>Allow auto Update:</label>
+            <label class="switch">
+              <input type="checkbox" v-model="allowAutoUpdate" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <button style="margin-top: 20px" @click="saveSettings">
+            Save Settings
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const API_BASE_URL = "/api";
+
+      new Vue({
+        el: "#app",
+        data: {
+          isLoggedIn: false,
+          token: "",
+          searchSN: "",
+          systemSettings: null,
+          loginForm: {
+            username: "",
+            password: "",
+          },
+          systemId: null,
+        },
+        created() {
+          this.setupAxiosInterceptors();
+        },
+        computed: {
+          allowAutoUpdate: {
+            get() {
+              return this.systemSettings.allow_auto_update === 1;
+            },
+            set(value) {
+              this.systemSettings.allow_auto_update = value ? 1 : 0;
+            },
+          },
+        },
+        methods: {
+          setupAxiosInterceptors() {
+            axios.interceptors.request.use(
+              (config) => {
+                const timestamp = Math.floor(Date.now() / 1000);
+                const code_1 = "LS885ZYDA95JV";
+                const code_2 = "FQKUIUUUV7PQNODZ";
+                const code_3 = "RDZIS4ERRED";
+                const code_4 = "S0EED8BCWSS";
+
+                const message = code_1 + code_2 + code_3 + code_4 + timestamp;
+                const hash = CryptoJS.SHA512(message).toString();
+
+                config.headers.authsignature = "al8e4s" + hash + "ui893ed";
+                config.headers.authtimestamp = timestamp;
+
+                if (this.token) {
+                  config.headers.Authorization = "Bearer " + this.token;
+                }
+
+                return config;
+              },
+              (error) => {
+                return Promise.reject(error);
+              }
+            );
+          },
+
+          async login() {
+            if (!this.loginForm.username || !this.loginForm.password) {
+              alert("Please enter username and password");
+              return;
+            }
+
+            try {
+              const response = await axios.post(
+                `${API_BASE_URL}/Account/Login`,
+                {
+                  username: this.loginForm.username,
+                  password: this.loginForm.password,
+                }
+              );
+
+              this.token = response.data.data.AccessToken;
+              this.isLoggedIn = true;
+
+              this.loginForm.username = "";
+              this.loginForm.password = "";
+            } catch (error) {
+              console.error("Login failed:", error);
+              alert("Login failed.");
+            }
+          },
+
+          async searchSystem() {
+            if (!this.searchSN) {
+              alert("Please enter a System SN");
+              return;
+            }
+            try {
+              this.systemId = null;
+              this.systemSettings = null;
+              const response = await axios.post(
+                `${API_BASE_URL}/ESS/GetSystems`,
+                {
+                  sortBy: "registrationtime",
+                  searchBy: "sn",
+                  state: "all",
+                  keyword: this.searchSN,
+                  pageIndex: 1,
+                  pageSize: 10,
+                  dataCount: 1,
+                }
+              );
+
+              if (response.data.data.data.length > 0) {
+                this.systemId = response.data.data.data[0].system_id;
+                setTimeout(() => {
+                  this.getSystemSettings();
+                }, 100);
+              } else {
+                alert("No system found with this SN");
+              }
+            } catch (error) {
+              console.error("Search failed:", error);
+              alert("Failed.");
+            }
+          },
+
+          async getSystemSettings() {
+            try {
+              const response = await axios.get(
+                `${API_BASE_URL}/ESS/GetIndexESSSet?Key=${this.systemId}`
+              );
+              this.systemSettings = response.data.data;
+            } catch (error) {
+              console.error("Get settings failed:", error);
+              alert("Failed.");
+            }
+          },
+
+          async saveSettings(systemId) {
+            this.systemSettings.key = this.systemId;
+            try {
+              const response = await axios.post(
+                `${API_BASE_URL}/ESS/SaveIndexESSSet`,
+                this.systemSettings
+              );
+              alert("Success!");
+            } catch (error) {
+              console.error("Save settings failed:", error);
+              alert("Failed.");
+            }
+          },
+        },
+      });
+    </script>
+  </body>
+</html>
